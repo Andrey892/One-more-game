@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Отбивай посылки!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Сброс и базовые стили */
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      font-family: sans-serif;
+    }
+    /* Игровой контейнер с фоном Back.png */
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: url('Back.png') no-repeat center center;
+      background-size: cover;
+    }
+    /* Игрок – изображение; по умолчанию подставляется Mäuschen.png, но оно меняется выбором персонажа */
+    #ball {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+    /* Падающие посылки (изображения package.png), увеличены до 60x60 */
+    .package {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      transition: transform 0.1s linear;
+    }
+    /* Нижняя линия – изображение Nerz.png */
+    #nerz {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 50px;
+      width: 100%;
+      object-fit: cover;
+    }
+    /* Элемент для отображения финального счёта и перезапуска (фон time.png) */
+    #score-board {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 300px;
+      height: 150px;
+      background: url('time.png') no-repeat center center;
+      background-size: contain;
+      display: none;
+      z-index: 2000;
+      text-align: center;
+      font-size: 32px;
+      color: black;
+      padding-top: 20px;
+    }
+    /* Кнопка перезапуска – изображение b3.png */
+    #restart-button {
+      margin-top: 10px;
+      width: 120px;
+      height: 60px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    #restart-button:hover {
+      transform: scale(1.1);
+    }
+    /* Класс для фрагментов взрыва посылки */
+    .explosion-fragment {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-size: 100% 100%;
+      transform-origin: center;
+      pointer-events: none;
+      animation: explode 1s forwards;
+    }
+    @keyframes explode {
+      0% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(var(--tx), var(--ty)) rotate(var(--rot));
+        opacity: 0;
+      }
+    }
+    /* Начальный экран – оверлей поверх игры */
+    #initial-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.9);
+      z-index: 3000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Контейнер для текстового изображения (Text.png) на начальном экране */
+    #text-container {
+      margin-bottom: 30px;
+    }
+    #text-container img {
+      max-width: 80%;
+      height: auto;
+    }
+    /* Контейнер для кнопок на начальном экране */
+    #button-container {
+      display: flex;
+      gap: 40px;
+    }
+    /* Кнопки – изображения (b1.png и b2.png) */
+    .btn {
+      width: 120px;
+      height: 60px;
+      cursor: pointer;
+      transition: transform 0.2s;
+      user-select: none;
+      position: relative;
+    }
+    .btn:hover {
+      transform: scale(1.1);
+    }
+    /* Экран выбора персонажа */
+    #character-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.95);
+      z-index: 3000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Заголовок выбора персонажа */
+    #hero-text {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    /* Контейнер для выбора персонажа */
+    #character-container {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 30px;
+    }
+    /* Опции персонажей */
+    .character-option {
+      width: 120px;
+      height: 120px;
+      cursor: pointer;
+      transition: transform 0.2s;
+      border: 2px solid transparent;
+    }
+    /* При наведении персонаж начинает дрожать и немного увеличивается */
+    .character-option:hover {
+      animation: tremble 0.5s infinite;
+      transform: scale(1.1);
+    }
+    /* Выбранный персонаж будет иметь выделяющую рамку */
+    .selected {
+      border-color: blue;
+    }
+    @keyframes tremble {
+      0% { transform: scale(1) translate(0, 0); }
+      25% { transform: scale(1.1) translate(-2px, 2px); }
+      50% { transform: scale(1.1) translate(2px, -2px); }
+      75% { transform: scale(1.1) translate(-2px, 2px); }
+      100% { transform: scale(1.1) translate(0, 0); }
+    }
+    /* Контейнер для кнопки подтверждения выбора персонажа */
+    #confirm-container {
+      margin-top: 20px;
+    }
+    /* Кнопка подтверждения – изображение b4.png */
+    #confirm-button {
+      width: 120px;
+      height: 60px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    #confirm-button:hover {
+      transform: scale(1.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <!-- Игрок: изображение, которое будет установлено выбранным персонажем -->
+    <img id="ball" src="Mäuschen.png" alt="Mäuschen">
+    <!-- Нижняя линия: изображение Nerz.png -->
+    <img id="nerz" src="Nerz.png" alt="Целевая линия">
+    <!-- Элемент для отображения финального счёта и перезапуска -->
+    <div id="score-board"></div>
+    
+    <!-- Начальный экран -->
+    <div id="initial-screen">
+      <div id="text-container">
+        <img src="Text.png" alt="Text">
+      </div>
+      <div id="button-container">
+        <img src="b1.png" alt="Start" id="start-button" class="btn">
+        <img src="b2.png" alt="Leave" id="leave-button" class="btn">
+      </div>
+    </div>
+    
+    <!-- Экран выбора персонажа -->
+    <div id="character-screen">
+      <!-- Заголовок выбора персонажа -->
+      <div id="hero-text">Choose your hero</div>
+      <!-- Контейнер с опциями персонажей -->
+      <div id="character-container">
+        <img src="Mäuschen.png" alt="Персонаж 1" id="char1" class="character-option">
+        <img src="Mäuschen2.png" alt="Персонаж 2" id="char2" class="character-option">
+      </div>
+      <div id="confirm-container">
+        <img src="b4.png" alt="Confirm" id="confirm-button" class="btn">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const gameContainer = document.getElementById('game-container');
+    const ball = document.getElementById('ball');
+    const nerz = document.getElementById('nerz');
+    const scoreBoard = document.getElementById('score-board');
+    const initialScreen = document.getElementById('initial-screen');
+    const startButton = document.getElementById('start-button');
+    const leaveButton = document.getElementById('leave-button');
+    const characterScreen = document.getElementById('character-screen');
+    const char1 = document.getElementById('char1');
+    const char2 = document.getElementById('char2');
+    const confirmButton = document.getElementById('confirm-button');
+
+    let selectedCharacter = null; // будет содержать путь выбранного персонажа
+    let packages = [];
+    let gameOver = false;
+    let score = 0;
+    let speedMultiplier = 1;
+    let packageInterval; // интервал создания посылок
+    let gameStarted = false;
+
+    // Каждые 5 секунд увеличиваем множитель скорости
+    let speedInterval = setInterval(() => {
+      if (gameStarted && !gameOver) {
+        speedMultiplier += 0.2;
+      }
+    }, 5000);
+
+    // Обновление позиции игрока по движению мыши
+    gameContainer.addEventListener('mousemove', (e) => {
+      const rect = gameContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      ball.style.left = x + 'px';
+      ball.style.top = y + 'px';
+    });
+
+    // Функция создания новой посылки (изображение package.png)
+    function createPackage() {
+      if (gameOver) return;
+      const pkg = document.createElement('img');
+      pkg.src = 'package.png';
+      pkg.classList.add('package');
+      const containerWidth = gameContainer.clientWidth;
+      const x = Math.random() * (containerWidth - 60);
+      pkg.style.left = x + 'px';
+      pkg.style.top = '-60px';
+      pkg.dataset.angle = "0";
+      pkg.dataset.speed = 2 + Math.random() * 3;
+      pkg.dataset.rotationSpeed = (Math.random() * 10) - 5;
+      gameContainer.appendChild(pkg);
+      packages.push(pkg);
+    }
+    
+    // Основной игровой цикл
+    function gameLoop() {
+      if (gameOver) return;
+      packages.forEach((pkg, index) => {
+        let top = parseFloat(pkg.style.top);
+        const speed = parseFloat(pkg.dataset.speed);
+        top += speed * speedMultiplier;
+        pkg.style.top = top + 'px';
+        
+        let angle = parseFloat(pkg.dataset.angle);
+        const rotationSpeed = parseFloat(pkg.dataset.rotationSpeed);
+        angle += rotationSpeed;
+        pkg.dataset.angle = angle;
+        pkg.style.transform = 'rotate(' + angle + 'deg)';
+        
+        // Если посылка столкнулась с игроком, запускаем взрыв и начисляем очки
+        if (isColliding(ball, pkg)) {
+          explodePackage(pkg);
+          pkg.remove();
+          packages.splice(index, 1);
+          score += 10;
+        }
+        
+        // Если посылка достигла нижней линии (Nerz.png), завершаем игру
+        const nerzRect = nerz.getBoundingClientRect();
+        const pkgRect = pkg.getBoundingClientRect();
+        if (pkgRect.bottom >= nerzRect.top) {
+          gameOver = true;
+          clearInterval(packageInterval);
+          scoreBoard.style.display = 'block';
+          scoreBoard.innerHTML = "Score: " + score + "<br><img id='restart-button' src='b3.png' alt='Restart' />";
+          document.getElementById('restart-button').addEventListener('click', restartGame);
+        }
+      });
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // Функция проверки столкновений
+    function isColliding(el1, el2) {
+      const rect1 = el1.getBoundingClientRect();
+      const rect2 = el2.getBoundingClientRect();
+      return !(rect1.right < rect2.left || 
+               rect1.left > rect2.right || 
+               rect1.bottom < rect2.top || 
+               rect1.top > rect2.bottom);
+    }
+    
+    // Функция "взрыва" посылки
+    function explodePackage(pkg) {
+      const fragmentsCount = 8;
+      const distance = 100;
+      for (let i = 0; i < fragmentsCount; i++) {
+        const frag = document.createElement('div');
+        frag.classList.add('explosion-fragment');
+        frag.style.left = pkg.style.left;
+        frag.style.top = pkg.style.top;
+        frag.style.width = pkg.style.width || '60px';
+        frag.style.height = pkg.style.height || '60px';
+        frag.style.backgroundImage = `url(${pkg.src})`;
+        const startAngle = i * (360 / fragmentsCount);
+        const rad = (deg) => deg * Math.PI / 180;
+        const x1 = 50 + 50 * Math.cos(rad(startAngle));
+        const y1 = 50 + 50 * Math.sin(rad(startAngle));
+        const x2 = 50 + 50 * Math.cos(rad(startAngle + (360 / fragmentsCount)));
+        const y2 = 50 + 50 * Math.sin(rad(startAngle + (360 / fragmentsCount)));
+        frag.style.clipPath = `polygon(50% 50%, ${x1}% ${y1}%, ${x2}% ${y2}%)`;
+        const angle = rad(startAngle + (360 / fragmentsCount) / 2);
+        const tx = Math.cos(angle) * distance;
+        const ty = Math.sin(angle) * distance;
+        frag.style.setProperty('--tx', tx + 'px');
+        frag.style.setProperty('--ty', ty + 'px');
+        const rot = (Math.random() * 720 - 360) + 'deg';
+        frag.style.setProperty('--rot', rot);
+        gameContainer.appendChild(frag);
+        setTimeout(() => frag.remove(), 1200);
+      }
+    }
+    
+    // Функция перезапуска игры
+    function restartGame() {
+      gameOver = false;
+      score = 0;
+      speedMultiplier = 1;
+      packages.forEach(pkg => pkg.remove());
+      packages = [];
+      scoreBoard.style.display = 'none';
+      gameStarted = true;
+      packageInterval = setInterval(createPackage, 500);
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // При нажатии на кнопку "start" (b1.png) скрываем начальный экран и показываем экран выбора персонажа
+    startButton.addEventListener('click', () => {
+      initialScreen.style.display = 'none';
+      characterScreen.style.display = 'flex';
+    });
+    
+    // Кнопка "leave" (b2.png) убегает от курсора при наведении
+    leaveButton.addEventListener('mouseenter', () => {
+      const scrRect = initialScreen.getBoundingClientRect();
+      const btnRect = leaveButton.getBoundingClientRect();
+      const maxX = scrRect.width - btnRect.width;
+      const maxY = scrRect.height - btnRect.height;
+      const newX = Math.random() * maxX;
+      const newY = Math.random() * maxY;
+      leaveButton.style.position = 'absolute';
+      leaveButton.style.left = newX + 'px';
+      leaveButton.style.top = newY + 'px';
+    });
+    
+    // Обработка клика по опциям выбора персонажа
+    char1.addEventListener('click', () => {
+      selectedCharacter = 'Mäuschen.png';
+      char1.classList.add('selected');
+      char2.classList.remove('selected');
+    });
+    char2.addEventListener('click', () => {
+      selectedCharacter = 'Mäuschen2.png';
+      char2.classList.add('selected');
+      char1.classList.remove('selected');
+    });
+    
+    // При нажатии на кнопку подтверждения (b4.png) начинаем игру с выбранным персонажем
+    confirmButton.addEventListener('click', () => {
+      if (!selectedCharacter) {
+        selectedCharacter = 'Mäuschen.png';
+        char1.classList.add('selected');
+      }
+      ball.src = selectedCharacter;
+      characterScreen.style.display = 'none';
+      gameStarted = true;
+      packageInterval = setInterval(createPackage, 500);
+      requestAnimationFrame(gameLoop);
+    });
+  </script>
+</body>
+</html>
